@@ -45,3 +45,9 @@ class Table(object):
         for idx in range(self.num_rows):
             rows.append([self.data[col][idx] for col in cols])
         return rows
+
+    # def get_column_aggregate(self, cols: list, agg_func):
+    #     row = []
+    #     for col in cols:
+    #         row.append(agg_func(self.data[col]))
+    #     return row
