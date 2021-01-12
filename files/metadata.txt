@@ -6,6 +6,6 @@ C
 <end_table>
 <begin_table>
 table2
-B
 D
+E
 <end_table>
