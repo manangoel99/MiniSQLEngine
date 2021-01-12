@@ -1,69 +1,103 @@
 import csv
+from Table import Table
+from Database import Database
+from utils import read_metadata
+from moz_sql_parser import parse
+import json
+from itertools import product
+from collections import defaultdict
 
-class Table(object):
-    def __init__(self, tablename: str, column_names: list):
-        self.tablename = tablename
-        self.num_columns = len(column_names)
-        self.data = dict()
-        for name in column_names:
-            self.data[name] = []
-        self.num_rows = 0
+def main():
+    while True:
+        query = input("MiniSQL> ").strip()
+        
+        if query == "exit" or query == "quit":
+            break
+        if not query.endswith(';'):
+            print("Query must end with ;")
+        
+        queries = query.split(';')
+        queries = queries[:-1]
+        
+        for idx, query in enumerate(queries):
+            try:
+                parsed_query = parse(query)
+            except:
+                print("Only Select Queries are supported")
+                break
+            # Fetch Required Tables
+            print(parsed_query)
+            table_names = parsed_query['from']
+            if type(table_names) != list:
+                table_names = [table_names]
+            tables = {}
+            flag = False
 
-    def __str__(self):
-        return self.tablename + " " + ",".join(self.data.keys())
+            for table_name in table_names:
+                tab = database.get_table(table_name)
+                if tab == None:
+                    print("Table does not exist")
+                    flag = True
+                    break
+                tables[table_name] = tab
 
-    def add_row(self, data):
-        assert self.num_columns == len(data), "Number of columns in the new row does not match number of columns in table"
-        for idx, col in enumerate(self.data.keys()):
-            self.data[col].append(int(data[idx]))
-        self.num_rows += 1
+            if flag == True:
+                break
+                    
+            column_names = []
+            
+            if parsed_query['select'] == "*":
+                for table in tables.values():
+                    cols = table.get_column_names()
+                    for col in cols:
+                        column_names.append(f"{table.tablename}.{col}")
+            else:
+                if type(parsed_query['select']) != list:
+                    reqd_columns = [parsed_query['select']]
+                else:
+                    reqd_columns = parsed_query['select']
+                
+                col_exist = {}
+                for col in reqd_columns:
+                    col_exist[col['value']] = False
 
-    def print_table(self):
-        row_format ="{:>15}" * (len(self.data.keys()) + 1)
-        print(row_format.format("", *self.data.keys()))
-        for i in range(self.num_rows):
-            val = []
-            for col in self.data.keys():
-                val.append(self.data[col][i])
-            print(row_format.format("", *val))
+                for table in tables.values():
+                    cols = table.get_column_names()
+                    for reqd_col in reqd_columns:
+                        if reqd_col['value'] in cols:
+                            column_names.append(f"{table.tablename}.{reqd_col['value']}")
+                            col_exist[reqd_col['value']] = True
+                
+                if False in col_exist.values():
+                    print("Column Does Not Exist")
+                    break
+            
+            table = Table(query, column_names)
+            cols = table.get_column_names()
+            
+            table_to_col = defaultdict(list)
+            for col in cols:
+                tab_name, col_name = col.split('.')
+                table_to_col[tab_name].append(col_name)
+            
+            table_data = defaultdict(list)
 
-class Database(object):
-    def __init__(self):
-        self.tables = dict()
-    
-    def create_table(self, table: Table):
-        self.tables[table.tablename] = table
-    
-    def get_table(self, name: str):
-        return self.tables[name]
+            for tab_name in table_to_col.keys():
+                table_data[tab_name] = tables[tab_name].get_columns(table_to_col[tab_name])
+            
+            rows = list(product(*table_data.values()))
+            for row in rows:
+                act_row = []
+                for elem in row:
+                    act_row += elem
+                table.add_row(act_row)
+            table.print_table()
 
-    def __str__(self):
-        return "\n".join([self.tables[i].__str__() for i in self.tables])
-
-def read_metadata(filepath: str):
-    with open(f"{filepath}/metadata.txt") as f:
-        metadata = f.readlines()
-        i = 0
-        while i < len(metadata):
-            if "<begin_table>" in metadata[i].strip():
-                i += 1
-                table_name = metadata[i].strip()
-                column_names = []
-                while "<end_table>" not in metadata[i].strip():
-                    i += 1
-                    column_names.append(metadata[i].strip())
-                column_names = column_names[:-1]
-                table = Table(table_name, column_names)
-                with open(f"{filepath}/{table_name}.csv", 'r') as f:
-                    reader = csv.reader(f, delimiter=',')
-                    for row in reader:
-                        table.add_row(row)
-                database.create_table(table)
-            i += 1
 
 
 if __name__ == '__main__':
     database = Database()
-    read_metadata('./files')
-    table1 = database.get_table("table1")
-    table1.print_table()
+    read_metadata('./files', database)
+    main()
+    # table1 = database.get_table("table1")
+    # table1.print_table()
