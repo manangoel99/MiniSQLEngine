@@ -1,3 +1,5 @@
+from utils import check
+
 class Table(object):
     def __init__(self, tablename: str, column_names: list):
         self.tablename = tablename
@@ -40,11 +42,50 @@ class Table(object):
             row.append(self.data[col][idx])
         return row
     
-    def get_columns(self, cols: list):
+    def get_columns(self, cols: list, conditions=None):
         rows = []
-        for idx in range(self.num_rows):
-            rows.append([self.data[col][idx] for col in cols])
-        return rows
+        if conditions is None:
+            for idx in range(self.num_rows):
+                rows.append([self.data[col][idx] for col in cols])
+            return rows
+
+        if len(conditions) == 1:
+            conditions = conditions[0]
+            cond_type = conditions[0]
+            column, val = conditions[1]
+            row_to_add = [False for i in range(self.num_rows)]
+
+            for idx in range(self.num_rows):
+                if check(self.data[column][idx], cond_type, val):
+                    row_to_add[idx] = True
+            for idx in range(self.num_rows):
+                if row_to_add[idx] == True:
+                    rows.append([self.data[col][idx] for col in cols])
+            return rows
+        else:
+            join_type = conditions[-1]
+            conditions = conditions[:-1]
+            rows_prime = []
+            for condition in conditions:
+                print(condition)
+                cond_type = condition[0]
+                column, val = condition[1]
+                row_to_add = [False for i in range(self.num_rows)]
+                rows = []
+                for idx in range(self.num_rows):
+                    if check(self.data[column][idx], cond_type, val):
+                        row_to_add[idx] = True
+                for idx in range(self.num_rows):
+                    if row_to_add[idx] == True:
+                        rows.append([self.data[col][idx] for col in cols])
+                rows_prime.append(set(tuple(i) for i in rows))
+            if join_type == 'and':
+                rows = rows_prime[0].intersection(rows_prime[1])
+            if join_type == 'or':
+                rows = rows_prime[0].union(rows_prime[1])
+            print(list(list(i) for i in rows))
+            return list(list(i) for i in rows)
+        
 
     # def get_column_aggregate(self, cols: list, agg_func):
     #     row = []

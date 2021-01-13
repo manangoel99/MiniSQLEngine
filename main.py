@@ -1,11 +1,10 @@
 import csv
 from Table import Table
 from Database import Database
-from utils import read_metadata
 from moz_sql_parser import parse
 import json
 from itertools import product
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 aggregate_functions = {
     'max' : max,
@@ -14,6 +13,28 @@ aggregate_functions = {
     'average' : lambda x : sum(x) / len(x),
     'count' : len,
 }
+
+def read_metadata(filepath: str, database: Database):
+    with open(f"{filepath}/metadata.txt") as f:
+        metadata = f.readlines()
+        i = 0
+        while i < len(metadata):
+            if "<begin_table>" in metadata[i].strip():
+                i += 1
+                table_name = metadata[i].strip()
+                column_names = []
+                while "<end_table>" not in metadata[i].strip():
+                    i += 1
+                    column_names.append(metadata[i].strip())
+                column_names = column_names[:-1]
+                table = Table(table_name, column_names)
+                with open(f"{filepath}/{table_name}.csv", 'r') as f:
+                    reader = csv.reader(f, delimiter=',')
+                    for row in reader:
+                        table.add_row(row)
+                database.create_table(table)
+            i += 1
+
 
 def main():
     while True:
@@ -31,6 +52,7 @@ def main():
             distinct_query = False
             simple_query = True
             aggregation_query = False
+            where_query = False
             try:
                 parsed_query = parse(query)
             except:
@@ -64,16 +86,20 @@ def main():
                     for col in cols:
                         column_names.append(f"{table.tablename}.{col}")
             else:
+                if 'where' in parsed_query:
+                    where_query = True
                 if 'value' in parsed_query['select']:
-                    print(parsed_query['select']['value'])
                     if 'distinct' in parsed_query['select']['value']:
                         distinct_query = True
                         simple_query = False
                         aggregation_query= False
                         reqd_columns = parsed_query['select']['value']['distinct']
-                    if list(parsed_query['select']['value'].keys())[0] in aggregate_functions.keys():
+                    if type(parsed_query['select']['value']) == str:
+                        simple_query = True
+                        reqd_columns = [{'value' : parsed_query['select']['value']}]
+                    elif list(parsed_query['select']['value'].keys())[0] in aggregate_functions.keys():
                         val = list(parsed_query['select']['value'].keys())[0]
-                        aggregation = aggregate_functions[ValueError]
+                        aggregation = aggregate_functions[val]
                         reqd_columns = [{'value' : parsed_query['select']['value'][val]}]
                         distinct_query = False
                         simple_query = False
@@ -83,7 +109,6 @@ def main():
                     reqd_columns = [parsed_query['select']]
                 else:
                     reqd_columns = parsed_query['select']
-                print(reqd_columns)
                 col_exist = {}
                 for col in reqd_columns:
                     col_exist[col['value']] = False
@@ -104,14 +129,42 @@ def main():
             cols = table.get_column_names()
             
             table_to_col = defaultdict(list)
+            table_to_cond = defaultdict(list)
+
             for col in cols:
                 tab_name, col_name = col.split('.')
                 table_to_col[tab_name].append(col_name)
-            
-            table_data = defaultdict(list)
+                if where_query == True:
+                    conditions = parsed_query['where']
+                    if 'and' in conditions:
+                        conditions = parsed_query['where']['and']
+                    elif 'or' in conditions:
+                        conditions = parsed_query['where']['or']
+                    else:
+                        conditions = [conditions]
+                    for condition in conditions:
+                        for key, val in condition.items():
+                            if val[0] in tables[tab_name].get_column_names():
+                                table_to_cond[tab_name].append([key, val])
 
-            for tab_name in table_to_col.keys():
-                table_data[tab_name] = tables[tab_name].get_columns(table_to_col[tab_name])
+            for key in table_to_cond.keys():
+                table_to_cond[key] = [i for n, i in enumerate(table_to_cond[key]) if i not in table_to_cond[key][:n]]
+                if len(table_to_cond[key]) > 1:
+                    table_to_cond[key].append(list(parsed_query['where'].keys())[0])
+            table_data = defaultdict(list)
+            print(table_to_cond)
+            if where_query == True:
+                for tab_name in table_to_col.keys():
+                    for tab, conditions in table_to_cond.items():
+                        if tab == tab_name:
+                            table_data[tab_name] = tables[tab_name].get_columns(table_to_col[tab_name], conditions)
+                        else:
+                            if len(table_data[tab_name]) == 0:
+                                table_data[tab_name] = tables[tab_name].get_columns(table_to_col[tab_name])
+
+            else:
+                for tab_name in table_to_col.keys():
+                    table_data[tab_name] = tables[tab_name].get_columns(table_to_col[tab_name])
 
             rows = list(product(*table_data.values()))
             act_rows = []
@@ -119,6 +172,7 @@ def main():
                 act_row = []
                 for elem in row:
                     act_row += elem
+                    # print(conditions)
                 act_rows.append(act_row)
             
             if simple_query == True:
