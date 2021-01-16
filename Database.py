@@ -12,6 +12,9 @@ class Database(object):
             return self.tables[name]
         except:
             return None
+    
+    def get_all_tables(self):
+        return self.tables
 
     def __str__(self):
         return "\n".join([self.tables[i].__str__() for i in self.tables])

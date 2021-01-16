@@ -1,13 +1,14 @@
 from utils import check
 
 class Table(object):
-    def __init__(self, tablename: str, column_names: list):
+    def __init__(self, tablename: str, column_names: list, database=None):
         self.tablename = tablename
         self.num_columns = len(column_names)
         self.data = dict()
         for name in column_names:
             self.data[name] = []
         self.num_rows = 0
+        self.parent = database
 
     def __str__(self):
         return self.tablename + " " + ",".join(self.data.keys())
@@ -42,19 +43,30 @@ class Table(object):
             row.append(self.data[col][idx])
         return row
     
-    def get_columns(self, cols: list, conditions=None):
+    def get_columns(self, cols: list, conditions=None, froms=None):
         rows = []
         if conditions is None:
             for idx in range(self.num_rows):
                 rows.append([self.data[col][idx] for col in cols])
             return rows
-
+        # print(conditions)
         if len(conditions) == 1:
             conditions = conditions[0]
             cond_type = conditions[0]
             column, val = conditions[1]
+            print(column, type(val))
             row_to_add = [False for i in range(self.num_rows)]
-
+            reqdTable = None
+            if type(val) == str:
+                tables = self.parent.get_all_tables()
+                for table in tables.keys():
+                    cols = tables[table].get_column_names()
+                    if val in cols:
+                        reqdTable = tables[table]
+                        break
+                if reqdTable.tablename not in froms:
+                    return -1
+                print(reqdTable.data[val])
             for idx in range(self.num_rows):
                 if check(self.data[column][idx], cond_type, val):
                     row_to_add[idx] = True
@@ -83,7 +95,6 @@ class Table(object):
                 rows = rows_prime[0].intersection(rows_prime[1])
             if join_type == 'or':
                 rows = rows_prime[0].union(rows_prime[1])
-            print(list(list(i) for i in rows))
             return list(list(i) for i in rows)
         
 
