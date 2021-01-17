@@ -17,6 +17,7 @@ aggregate_functions = {
     'sum' : sum,
     'average' : lambda x : sum(x) / len(x),
     'count' : len,
+    'none' : lambda x: x[0],
 }
 
 def read_metadata(filepath: str, database: Database):
@@ -161,21 +162,39 @@ def QueryDatabase(query: str):
         occurrences = defaultdict(list)
         for val in distinct_vals:
             occurrences[val] = [i for i, x in enumerate(column_data) if x == val]
-        # print(occurrences)
-        # print(parsed_query['select'])
+        
+        new_col_data = defaultdict(list)
         for column in parsed_query['select']:
-            aggregation = "None"
-            if type(column['val']) == dict:
+            if column['value'] == groupby_col:
+                continue
+            aggregation = "none"
+            if type(column['value']) == dict:
                 aggregation = list(column['value'].keys())[0]
                 column_name = column['value'][aggregation]
             else:
                 column_name = column['value']
             
+            col_name = f"{col_to_table[column_name]}.{column_name}"
+            col_data = temp_table.get_column(col_name)
+            corresponding = defaultdict(list)
+            for val in distinct_vals:
+                corresponding[val] = aggregate_functions[aggregation]([col_data[idx] for idx in occurrences[val]])
+            column_data = []
+            for val in distinct_vals:
+                column_data.append(corresponding[val])
+            if aggregation != "none":
+                new_col_data[f"{aggregation}({col_to_table[column_name]}.{column_name})"] = column_data
+            else:
+                new_col_data[f"{col_to_table[column_name]}.{column_name}"] = column_data
+        new_col_data[f"{col_to_table[groupby_col]}.{groupby_col}"] = list(distinct_vals)
+        
+        table = Table(query, new_col_data.keys())
+        
+        for idx in range(len(occurrences)):
+            row = [new_col_data[col][idx] for col in table.get_column_names()]
+            table.add_row(row)
+        temp_table = table
 
-
-
-
-    
     if distinct_query:
         distinct_cols = parsed_query['select']['value']['distinct']
         col_names = []
@@ -213,6 +232,7 @@ def QueryDatabase(query: str):
         elif ordering == 'desc':
             indices = sorted(range(len(temp_table.data[col_name])), key=temp_table.data[col_name].__getitem__, reverse=True)
         rows = []
+
         for idx in indices:
             rows.append(temp_table.get_row(idx))
         temp_table = Table(query, temp_table.get_column_names())
