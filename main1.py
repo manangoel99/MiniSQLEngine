@@ -334,6 +334,15 @@ def QueryDatabase(query: str):
             table.add_row(row)
         # table.print_table()
         temp_table = table
+    
+    if 'groupby' in parsed_query:
+        groupby_col = parsed_query['groupby']
+        reqd_cols = copy.copy(parsed_query['select'])
+        if type(reqd_cols) != list:
+            reqd_cols = [reqd_cols]
+        if groupby_col not in reqd_cols:
+            temp_table.remove_column(f"{col_to_table[groupby_col['value']]}.{groupby_col['value']}")
+
     temp_table.print_table()
     
 

@@ -44,3 +44,6 @@ class Table(object):
     def get_column(self, col_name: str) -> list:
         return self.data[col_name]
     
+    def remove_column(self, col_name: str):
+        self.data.pop(col_name)
+    
