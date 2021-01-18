@@ -166,6 +166,7 @@ def QueryDatabase(query: str):
             else:
                 reqd = [x for x in rows[0]]
                 reqd += [x for x in rows[1] if x not in reqd]
+            reqd_rows = reqd
         temp_table = Table(query, temp_table.get_column_names())
         for row in reqd_rows:
             temp_table.add_row(row)
@@ -263,7 +264,17 @@ def QueryDatabase(query: str):
         ordering = 'asc'
         if 'sort' in parsed_query['orderby']:
             ordering = copy.copy(parsed_query['orderby']['sort'])
-        col_name = f"{col_to_table[column_for_ordering]}.{column_for_ordering}"
+        # print(column_for_ordering, temp_table.get_column_names())
+        if type(column_for_ordering) == dict:
+            agg = list(column_for_ordering.keys())[0]
+            column = column_for_ordering[agg]
+            if column != '*':
+                col_name = f"{agg}({col_to_table[column]}.{column})"
+            else:
+                col_name = "count(*)"
+        else:
+        # print(temp_table.get_column_names())
+            col_name = f"{col_to_table[column_for_ordering]}.{column_for_ordering}"
         if col_name not in temp_table.get_column_names():
             print("Column Does Not Exist")
             return -1
@@ -303,7 +314,26 @@ def QueryDatabase(query: str):
             temp_table = Table(query, [col_name])
             temp_table.add_row([reqd])
 
-
+    if 'groupby' not in parsed_query and not aggregate_query and not distinct_query:
+        reqd_cols = copy.copy(parsed_query['select'])
+        act_names = []
+        for idx, col in enumerate(reqd_cols):
+            reqd_cols[idx]['value'] = f"{col_to_table[col['value']]}.{col['value']}"
+            act_names.append(reqd_cols[idx]['value'])
+        table = Table(query, act_names)
+        cols = {}
+        for col in act_names:
+            cols[col] = temp_table.get_column(col)
+        rows = list()
+        for idx in range(temp_table.get_num_rows()):
+            row = []
+            for col in cols:
+                row.append(cols[col][idx])
+            rows.append(row)
+        for row in rows:
+            table.add_row(row)
+        # table.print_table()
+        temp_table = table
     temp_table.print_table()
     
 
