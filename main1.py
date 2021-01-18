@@ -88,7 +88,6 @@ def QueryDatabase(query: str):
 
 
     column_names = []
-    # print(parsed_query)
     if 'where' in parsed_query:
         where_query = True
     if parsed_query['select'] == "*":
@@ -99,7 +98,6 @@ def QueryDatabase(query: str):
         if 'distinct' in parsed_query['select']['value']:
             distinct_query = True
             simple_query = False
-            # aggregation_query= False
             reqd_columns = copy.copy(parsed_query['select']['value']['distinct'])
             if type(reqd_columns) != list:
                 reqd_columns = [reqd_columns]
@@ -110,7 +108,6 @@ def QueryDatabase(query: str):
         if key in aggregate_functions.keys() and 'groupby' not in parsed_query:
             reqd_columns = [{'value' : copy.copy(parsed_query['select']['value'][key])}]
             cols = []
-            # print(reqd_columns)
             if reqd_columns[0]['value'] == '*':
                 for col in all_col_names:
                     cols.append({'value' : col.split(".")[1]})
@@ -121,27 +118,32 @@ def QueryDatabase(query: str):
             cols = copy.copy(parsed_query['select']['value'])
             key = list(cols.keys())[0]
             reqd_columns = [{'value' : cols[key]}]
-            # print(key)
-            # pass
     elif type(parsed_query['select']) != list:
         reqd_columns = [parsed_query['select']]
     else:
         reqd_columns = copy.copy(parsed_query['select'])
     col_exist = {}
+    cols = []
+    for col in reqd_columns:
+        if col['value'] == '*':
+            cols = [{'value' : i.split(".")[1]} for i in all_col_names]
+    reqd_columns = cols
+    print(reqd_columns)
+
     for idx, col in enumerate(reqd_columns):
         if type(col['value']) == dict:
             keys = list(col['value'].keys())[0]
             reqd_columns[idx] = {'value' : col['value'][keys]}
             col = reqd_columns[idx]
         col_exist[col['value']] = False
+    
+        
     for table in tables.values():
         cols = table.get_column_names()
         for reqd_col in reqd_columns:
             if reqd_col['value'] in cols:
                 column_names.append(f"{table.tablename}.{reqd_col['value']}")
                 col_exist[reqd_col['value']] = True
-    # print(reqd_columns)
-    
     if False in col_exist.values():
         print("Column Does Not Exist")
         return -1
@@ -159,8 +161,6 @@ def QueryDatabase(query: str):
             rows = []
             for condition in parsed_query['where'][multi_cond_type]:
                 rows.append(makeQuery(temp_table, condition, col_to_table))
-            # part1 = set(tuple(i) for i in rows[0])
-            # part2 = set(tuple(i) for i in rows[1])
             if multi_cond_type == 'and':
                 reqd = [x for x in rows[0] if x in rows[1]]
             else:
@@ -182,13 +182,15 @@ def QueryDatabase(query: str):
         
         new_col_data = defaultdict(list)
         selection = copy.copy(parsed_query['select'])
-        print(selection)
         if type(selection) == dict:
             if 'distinct' in selection['value']:
                 selection = selection['value']['distinct']
             elif type(selection) != list:
                 selection = [selection]
-        # print(selection)
+        
+        if selection == '*':
+            selection = [{'value' : i.split(".")[1]} for i in all_col_names]
+        
         for column in selection:
             if column['value'] == groupby_col:
                 continue
@@ -198,7 +200,12 @@ def QueryDatabase(query: str):
                 column_name = column['value'][aggregation]
             else:
                 column_name = column['value']
-            
+            name = column_name
+            if column_name == '*' and aggregation != "count":
+                print("* not supported for aggregate")
+                return -1
+            elif column_name == '*' and aggregation == "count":
+                column_name = temp_table.get_column_names()[0].split(".")[1]
             col_name = f"{col_to_table[column_name]}.{column_name}"
             col_data = temp_table.get_column(col_name)
             corresponding = defaultdict(list)
@@ -208,7 +215,10 @@ def QueryDatabase(query: str):
             for val in distinct_vals:
                 column_data.append(corresponding[val])
             if aggregation != "none":
-                new_col_data[f"{aggregation}({col_to_table[column_name]}.{column_name})"] = column_data
+                if name == '*':
+                    new_col_data[f"{aggregation}(*)"] = column_data
+                else:
+                    new_col_data[f"{aggregation}({col_to_table[column_name]}.{column_name})"] = column_data
             else:
                 new_col_data[f"{col_to_table[column_name]}.{column_name}"] = column_data
         new_col_data[f"{col_to_table[groupby_col]}.{groupby_col}"] = list(distinct_vals)

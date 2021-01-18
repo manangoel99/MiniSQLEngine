@@ -27,7 +27,7 @@ class Table(object):
             print(row_format.format("", *val))
         
     def get_column_names(self) -> list:
-        return self.data.keys()
+        return list(self.data.keys())
 
     def get_num_rows(self) -> int:
         return self.num_rows
