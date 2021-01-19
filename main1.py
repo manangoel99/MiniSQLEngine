@@ -142,6 +142,12 @@ def QueryDatabase(query: str):
                 poss = list(col['value'].keys())[0]
                 if poss in aggregate_functions.keys() and 'groupby' not in parsed_query:
                     aggregate_query = True
+    if 'groupby' in parsed_query and 'orderby' in parsed_query:
+        groupby_col = parsed_query['groupby']
+        orderby_col = parsed_query['orderby']
+        if groupby_col['value'] != orderby_col['value']:
+            print("Group By and Order By columns must be same")
+            return -1
     col_exist = {}
     cols = []
     for col in reqd_columns:
