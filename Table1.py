@@ -12,20 +12,21 @@ class Table(object):
         return self.tablename + " " + ",".join(self.data.keys())
 
     def add_row(self, data: list):
-        assert self.num_columns == len(data), "Number of columns in the new row does not match number of columns in table"
+        assert self.num_columns == len(
+            data), "Number of columns in the new row does not match number of columns in table"
         for idx, col in enumerate(self.data.keys()):
             self.data[col].append(int(data[idx]))
         self.num_rows += 1
 
     def print_table(self):
-        row_format ="{:>15}" * (len(self.data.keys()) + 1)
+        row_format = "{:>15}" * (len(self.data.keys()) + 1)
         print(row_format.format("", *self.data.keys()))
         for i in range(self.num_rows):
             val = []
             for col in self.data.keys():
                 val.append(self.data[col][i])
             print(row_format.format("", *val))
-        
+
     def get_column_names(self) -> list:
         return list(self.data.keys())
 
@@ -40,10 +41,9 @@ class Table(object):
         for col in self.data.keys():
             row.append(self.data[col][idx])
         return row
-    
+
     def get_column(self, col_name: str) -> list:
         return self.data[col_name]
-    
+
     def remove_column(self, col_name: str):
         self.data.pop(col_name)
-    

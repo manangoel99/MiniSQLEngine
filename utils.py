@@ -1,5 +1,6 @@
 import csv
 
+
 def check(lhs, op, rhs):
     if op == 'eq':
         return lhs == rhs

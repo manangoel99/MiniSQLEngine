@@ -1,5 +1,6 @@
 from utils import check
 
+
 class Table(object):
     def __init__(self, tablename: str, column_names: list, database=None):
         self.tablename = tablename
@@ -14,20 +15,21 @@ class Table(object):
         return self.tablename + " " + ",".join(self.data.keys())
 
     def add_row(self, data: list):
-        assert self.num_columns == len(data), "Number of columns in the new row does not match number of columns in table"
+        assert self.num_columns == len(
+            data), "Number of columns in the new row does not match number of columns in table"
         for idx, col in enumerate(self.data.keys()):
             self.data[col].append(int(data[idx]))
         self.num_rows += 1
 
     def print_table(self):
-        row_format ="{:>15}" * (len(self.data.keys()) + 1)
+        row_format = "{:>15}" * (len(self.data.keys()) + 1)
         print(row_format.format("", *self.data.keys()))
         for i in range(self.num_rows):
             val = []
             for col in self.data.keys():
                 val.append(self.data[col][i])
             print(row_format.format("", *val))
-        
+
     def get_column_names(self):
         return self.data.keys()
 
@@ -42,7 +44,7 @@ class Table(object):
         for col in self.data.keys():
             row.append(self.data[col][idx])
         return row
-    
+
     def get_columns(self, cols: list, conditions=None, froms=None):
         rows = []
         if conditions is None:
@@ -57,7 +59,7 @@ class Table(object):
             print(column, type(val))
             row_to_add = [False for i in range(self.num_rows)]
             reqdTable = None
-            if type(val) == str:
+            if isinstance(val, str):
                 tables = self.parent.get_all_tables()
                 for table in tables.keys():
                     cols = tables[table].get_column_names()
@@ -71,7 +73,7 @@ class Table(object):
                 if check(self.data[column][idx], cond_type, val):
                     row_to_add[idx] = True
             for idx in range(self.num_rows):
-                if row_to_add[idx] == True:
+                if row_to_add[idx]:
                     rows.append([self.data[col][idx] for col in cols])
             return rows
         else:
@@ -88,7 +90,7 @@ class Table(object):
                     if check(self.data[column][idx], cond_type, val):
                         row_to_add[idx] = True
                 for idx in range(self.num_rows):
-                    if row_to_add[idx] == True:
+                    if row_to_add[idx]:
                         rows.append([self.data[col][idx] for col in cols])
                 rows_prime.append(set(tuple(i) for i in rows))
             if join_type == 'and':
@@ -96,7 +98,6 @@ class Table(object):
             if join_type == 'or':
                 rows = rows_prime[0].union(rows_prime[1])
             return list(list(i) for i in rows)
-        
 
     # def get_column_aggregate(self, cols: list, agg_func):
     #     row = []
