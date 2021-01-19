@@ -88,7 +88,6 @@ def QueryDatabase(query: str):
 
 
     column_names = []
-    print(parsed_query)
     if 'where' in parsed_query:
         where_query = True
     if parsed_query['select'] == "*":
@@ -102,23 +101,28 @@ def QueryDatabase(query: str):
             reqd_columns = copy.copy(parsed_query['select']['value']['distinct'])
             if type(reqd_columns) != list:
                 reqd_columns = [reqd_columns]
+            for col in reqd_columns:
+                if type(col['value']) == dict:
+                    print("Aggregation queries not supported with distinct")
+                    return -1
         if type(parsed_query['select']['value']) == str:
             simple_query = True
             reqd_columns = [{'value' : copy.copy(parsed_query['select']['value'])}]
-        key = list(parsed_query['select']['value'].keys())[0]
-        if key in aggregate_functions.keys() and 'groupby' not in parsed_query:
-            reqd_columns = [{'value' : copy.copy(parsed_query['select']['value'][key])}]
-            cols = []
-            if reqd_columns[0]['value'] == '*':
-                for col in all_col_names:
-                    cols.append({'value' : col.split(".")[1]})
-            reqd_columns = cols
-            aggregate_query = True
-        if 'groupby' in parsed_query:
-            reqd_columns = []
-            cols = copy.copy(parsed_query['select']['value'])
-            key = list(cols.keys())[0]
-            reqd_columns = [{'value' : cols[key]}]
+        if type(parsed_query['select']['value']) == dict:
+            key = list(parsed_query['select']['value'].keys())[0]
+            if key in aggregate_functions.keys() and 'groupby' not in parsed_query:
+                reqd_columns = [{'value' : copy.copy(parsed_query['select']['value'][key])}]
+                cols = []
+                if reqd_columns[0]['value'] == '*':
+                    for col in all_col_names:
+                        cols.append({'value' : col.split(".")[1]})
+                reqd_columns = cols
+                aggregate_query = True
+            if 'groupby' in parsed_query:
+                reqd_columns = []
+                cols = copy.copy(parsed_query['select']['value'])
+                key = list(cols.keys())[0]
+                reqd_columns = [{'value' : cols[key]}]
     elif type(parsed_query['select']) != list:
         reqd_columns = [parsed_query['select']]
     else:
@@ -301,7 +305,6 @@ def QueryDatabase(query: str):
         if type(parsed_query['select']) == dict:
             aggregate_func = list(parsed_query['select']['value'].keys())[0]
             col_name = parsed_query['select']['value'][aggregate_func]
-            # col_name = 
             if aggregate_func == 'count' and col_name == '*':
                 table = Table(query, ['count(*)'])
                 table.add_row([temp_table.get_num_rows()])
@@ -356,7 +359,8 @@ def QueryDatabase(query: str):
         if '*' in reqd_cols:
             cols = [{'value' : i.split(".")[1]} for i in all_col_names]
             reqd_cols = cols
-        print(reqd_cols)
+        if type(reqd_cols) != list:
+            reqd_cols = [reqd_cols]
         for idx, col in enumerate(reqd_cols):
             reqd_cols[idx]['value'] = f"{col_to_table[col['value']]}.{col['value']}"
             act_names.append(reqd_cols[idx]['value'])
