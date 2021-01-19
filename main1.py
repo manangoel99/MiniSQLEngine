@@ -164,10 +164,12 @@ def QueryDatabase(query: str):
             if reqd_col['value'] in cols:
                 column_names.append(f"{table.tablename}.{reqd_col['value']}")
                 col_exist[reqd_col['value']] = True
+    # Check if invalid columns are requested
     if False in col_exist.values():
         print("Column Does Not Exist")
         return -1
 
+    # Execute where
     if where_query:
         multiple_conditions = False
         multi_cond_type = None
@@ -193,6 +195,7 @@ def QueryDatabase(query: str):
         for row in reqd_rows:
             temp_table.add_row(row)
 
+    # Perform grouping
     if 'groupby' in parsed_query and not aggregate_query:
         groupby_col = copy.copy(parsed_query['groupby']['value'])
         col_name = f"{col_to_table[groupby_col]}.{groupby_col}"
@@ -259,6 +262,7 @@ def QueryDatabase(query: str):
         temp_table = table
         # temp_table.print_table()
 
+    # Fetch distinct records
     if distinct_query and not aggregate_query:
         distinct_cols = copy.copy(parsed_query['select']['value']['distinct'])
         col_names = []
@@ -287,6 +291,7 @@ def QueryDatabase(query: str):
         for row in rows:
             temp_table.add_row(row)
 
+    # Order as ascending or descending
     if 'orderby' in parsed_query and not aggregate_query:
         column_for_ordering = copy.copy(parsed_query['orderby']['value'])
         ordering = 'asc'
@@ -320,6 +325,7 @@ def QueryDatabase(query: str):
         for row in rows:
             temp_table.add_row(row)
 
+    # Perform aggregation
     if aggregate_query:
         if isinstance(parsed_query['select'], dict):
             aggregate_func = list(parsed_query['select']['value'].keys())[0]
@@ -375,6 +381,8 @@ def QueryDatabase(query: str):
             table.add_row([col_data[col_name][0]
                            for col_name in col_data.keys()])
             temp_table = table
+    
+    # Perform Selection
     if 'groupby' not in parsed_query and not aggregate_query and not distinct_query:
         reqd_cols = copy.copy(parsed_query['select'])
         act_names = []
@@ -400,6 +408,7 @@ def QueryDatabase(query: str):
             table.add_row(row)
         temp_table = table
 
+    # Remove groupby column if required
     if 'groupby' in parsed_query:
         groupby_col = parsed_query['groupby']
         reqd_cols = copy.copy(parsed_query['select'])
