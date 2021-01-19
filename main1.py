@@ -88,6 +88,7 @@ def QueryDatabase(query: str):
 
 
     column_names = []
+    print(parsed_query)
     if 'where' in parsed_query:
         where_query = True
     if parsed_query['select'] == "*":
@@ -122,16 +123,19 @@ def QueryDatabase(query: str):
         reqd_columns = [parsed_query['select']]
     else:
         reqd_columns = copy.copy(parsed_query['select'])
+        for col in reqd_columns:
+            if type(col['value']) == dict:
+                poss = list(col['value'].keys())[0]
+                if poss in aggregate_functions.keys() and not 'groupby' in parsed_query:
+                    aggregate_query = True
     col_exist = {}
     cols = []
-    print(reqd_columns)
     for col in reqd_columns:
         if col == '*':
             cols = [{'value' : i.split(".")[1]} for i in all_col_names]
         elif col['value'] == '*':
             cols = [{'value' : i.split(".")[1]} for i in all_col_names]
     reqd_columns = cols
-    # print(reqd_columns)
 
     for idx, col in enumerate(reqd_columns):
         if type(col['value']) == dict:
@@ -294,37 +298,66 @@ def QueryDatabase(query: str):
             temp_table.add_row(row)
     
     if aggregate_query:
-        aggregate_func = list(parsed_query['select']['value'].keys())[0]
-        col_name = parsed_query['select']['value'][aggregate_func]
-        # col_name = 
-        if aggregate_func == 'count' and col_name == '*':
-            table = Table(query, ['count(*)'])
-            table.add_row([temp_table.get_num_rows()])
-            temp_table = table
-        elif col_name == '*' and aggregate_func in aggregate_functions.keys():
-            print("* Operation not supported with aggregate function")
-            return -1
-        elif aggregate_func not in aggregate_functions.keys():
-            print("Aggregate Function not supported")
-            return -1
+        if type(parsed_query['select']) == dict:
+            aggregate_func = list(parsed_query['select']['value'].keys())[0]
+            col_name = parsed_query['select']['value'][aggregate_func]
+            # col_name = 
+            if aggregate_func == 'count' and col_name == '*':
+                table = Table(query, ['count(*)'])
+                table.add_row([temp_table.get_num_rows()])
+                temp_table = table
+            elif col_name == '*' and aggregate_func in aggregate_functions.keys():
+                print("* Operation not supported with aggregate function")
+                return -1
+            elif aggregate_func not in aggregate_functions.keys():
+                print("Aggregate Function not supported")
+                return -1
+            else:
+                column_name = f"{col_to_table[col_name]}.{col_name}"
+
+                col_data = temp_table.get_column(column_name)
+                reqd = aggregate_functions[aggregate_func](col_data)
+                col_name = f"{aggregate_func}({col_to_table[col_name]}.{col_name})"
+
+                temp_table = Table(query, [col_name])
+                temp_table.add_row([reqd])
         else:
-            column_name = f"{col_to_table[col_name]}.{col_name}"
+            col_data = defaultdict(list)
+            for col in parsed_query['select']:
+                if_star = False
 
-            col_data = temp_table.get_column(column_name)
-            reqd = aggregate_functions[aggregate_func](col_data)
-            col_name = f"{aggregate_func}({col_to_table[col_name]}.{col_name})"
-
-            temp_table = Table(query, [col_name])
-            temp_table.add_row([reqd])
-
+                if type(col['value']) == dict:
+                    agg = list(col['value'].keys())[0]
+                    column = col['value'][agg]
+                    if column == '*' and agg == 'count':
+                        column = temp_table.get_column_names()[0].split(".")[1]
+                        if_star = True
+                    elif column == '*' and agg != 'count':
+                        print("* only supported with count")
+                        return -1
+                else:
+                    agg = "none"
+                    column = col['value']
+                column_data = temp_table.get_column(f"{col_to_table[column]}.{column}")
+                if agg == 'none':
+                    col_name = f"{col_to_table[column]}.{column}"
+                else:
+                    if if_star == False:
+                        col_name = f"{agg}({col_to_table[column]}.{column})"
+                    else:
+                        col_name = f"{agg}(*)"
+                col_data[col_name].append(aggregate_functions[agg](column_data))
+            table = Table(query, list(col_data.keys()))
+            table.add_row([col_data[col_name][0] for col_name in col_data.keys()])
+            temp_table = table
     if 'groupby' not in parsed_query and not aggregate_query and not distinct_query:
         reqd_cols = copy.copy(parsed_query['select'])
         act_names = []
         if '*' in reqd_cols:
             cols = [{'value' : i.split(".")[1]} for i in all_col_names]
-        reqd_cols = cols
+            reqd_cols = cols
+        print(reqd_cols)
         for idx, col in enumerate(reqd_cols):
-            # print(col)
             reqd_cols[idx]['value'] = f"{col_to_table[col['value']]}.{col['value']}"
             act_names.append(reqd_cols[idx]['value'])
         table = Table(query, act_names)
@@ -339,7 +372,6 @@ def QueryDatabase(query: str):
             rows.append(row)
         for row in rows:
             table.add_row(row)
-        # table.print_table()
         temp_table = table
     
     if 'groupby' in parsed_query:
