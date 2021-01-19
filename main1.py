@@ -124,11 +124,14 @@ def QueryDatabase(query: str):
         reqd_columns = copy.copy(parsed_query['select'])
     col_exist = {}
     cols = []
+    print(reqd_columns)
     for col in reqd_columns:
-        if col['value'] == '*':
+        if col == '*':
+            cols = [{'value' : i.split(".")[1]} for i in all_col_names]
+        elif col['value'] == '*':
             cols = [{'value' : i.split(".")[1]} for i in all_col_names]
     reqd_columns = cols
-    print(reqd_columns)
+    # print(reqd_columns)
 
     for idx, col in enumerate(reqd_columns):
         if type(col['value']) == dict:
@@ -317,7 +320,11 @@ def QueryDatabase(query: str):
     if 'groupby' not in parsed_query and not aggregate_query and not distinct_query:
         reqd_cols = copy.copy(parsed_query['select'])
         act_names = []
+        if '*' in reqd_cols:
+            cols = [{'value' : i.split(".")[1]} for i in all_col_names]
+        reqd_cols = cols
         for idx, col in enumerate(reqd_cols):
+            # print(col)
             reqd_cols[idx]['value'] = f"{col_to_table[col['value']]}.{col['value']}"
             act_names.append(reqd_cols[idx]['value'])
         table = Table(query, act_names)
