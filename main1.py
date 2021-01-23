@@ -79,7 +79,7 @@ def QueryDatabase(query: str):
         for idx1, val1 in enumerate(table_names):
             if val.lower() == val1.lower():
                 query_new = query_new.replace(val, val1)
-    print(query_new)
+    # print(query_new)
 
     parsed_query = parse(query_new)
 
@@ -487,8 +487,11 @@ def QueryDatabase(query: str):
             for row in rows:
                 table.add_row(row)
             temp_table = table
-
-    temp_table.print_table()
+    if "count" in query:
+        # print("HAHA")
+        temp_table.print_table()
+    else:
+        temp_table.print_table(reqd_columns)
 
 
 def makeQuery(table: Table, query: dict, col_to_table: dict):
@@ -497,6 +500,8 @@ def makeQuery(table: Table, query: dict, col_to_table: dict):
     if str(val).isdecimal() and str(col_name).isdecimal():
         print("Both Columns can't be numeric")
         return -1
+    if str(col_name).isdecimal() and str(val).isalpha():
+        col_name, val = val, col_name
     reqd_col = f"{col_to_table[col_name]}.{col_name}"
     cross_column = False
     if str(val).isalpha():

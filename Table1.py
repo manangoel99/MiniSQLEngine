@@ -18,12 +18,20 @@ class Table(object):
             self.data[col].append(int(data[idx]))
         self.num_rows += 1
 
-    def print_table(self):
-        row_format = "{:>15}" * (len(self.data.keys()) + 1)
-        print(row_format.format("", *self.data.keys()))
+    def print_table(self, order=None):
+        cols = []
+        if order is not None:
+            for col in order:
+                for c in self.data.keys():
+                    if col['value'] in c:
+                        cols.append(c)
+        else:
+            cols = self.data.keys()
+        row_format = "{:>15}" * (len(cols) + 1)
+        print(row_format.format("", *cols))
         for i in range(self.num_rows):
             val = []
-            for col in self.data.keys():
+            for col in cols:
                 val.append(self.data[col][i])
             print(row_format.format("", *val))
 
