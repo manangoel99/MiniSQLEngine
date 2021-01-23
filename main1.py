@@ -32,7 +32,7 @@ def read_metadata(filepath: str, database: Database):
                 column_names = []
                 while "<end_table>" not in metadata[i].strip():
                     i += 1
-                    column_names.append(metadata[i].strip())
+                    column_names.append(metadata[i].strip().upper())
                 column_names = column_names[:-1]
                 table = Table(table_name, column_names, database)
                 with open(f"{filepath}/{table_name}.csv", 'r') as f:
@@ -44,10 +44,12 @@ def read_metadata(filepath: str, database: Database):
 
 
 def QueryDatabase(query: str):
+    # query = query.upper()
     simple_query = True
     where_query = False
     distinct_query = False
     aggregate_query = False
+    distinct_groupby = False
 
     # Check for exit and if query can be parsed
     if query == "exit" or query == "quit":
@@ -65,6 +67,21 @@ def QueryDatabase(query: str):
     table_names = copy.copy(parsed_query['from'])
     if not isinstance(table_names, list):
         table_names = [table_names]
+    table_names = list(set(table_names))
+
+    query_new = query.upper()
+    parsed_query_upper = parse(query_new)
+    upper_tables = copy.copy(parsed_query_upper['from'])
+    if not isinstance(upper_tables, list):
+        upper_tables = [upper_tables]
+    upper_tables = list(set(upper_tables))
+    for idx, val in enumerate(upper_tables):
+        for idx1, val1 in enumerate(table_names):
+            if val.lower() == val1.lower():
+                query_new = query_new.replace(val, val1)
+    print(query_new)
+
+    parsed_query = parse(query_new)
 
     table_rows = defaultdict(list)
     tables = {}
@@ -132,7 +149,19 @@ def QueryDatabase(query: str):
                 reqd_columns = []
                 cols = copy.copy(parsed_query['select']['value'])
                 key = list(cols.keys())[0]
-                reqd_columns = [{'value': cols[key]}]
+                if key == 'distinct':
+                    cols = copy.copy(parsed_query['select']['value'][key])
+                    if not isinstance(cols, list):
+                        cols = [cols]
+                    for column in cols:
+                        if isinstance(column['value'], str):
+                            reqd_columns.append({'value': column['value']})
+                        else:
+                            k = list(column['value'].keys())[0]
+                            reqd_columns.append({'value': column['value'][k]})
+                    distinct_groupby = True
+                else:
+                    reqd_columns = [{'value': cols[key]}]
     elif not isinstance(parsed_query['select'], list):
         reqd_columns = [parsed_query['select']]
     else:
@@ -150,12 +179,22 @@ def QueryDatabase(query: str):
             return -1
     col_exist = {}
     cols = []
+    flag = False
     for col in reqd_columns:
         if col == '*':
             cols = [{'value': i.split(".")[1]} for i in all_col_names]
+            flag = True
         elif col['value'] == '*':
             cols = [{'value': i.split(".")[1]} for i in all_col_names]
-    reqd_columns = cols
+            flag = True
+        elif isinstance(col['value'], dict):
+            key = list(col['value'].keys())[0]
+            col = col['value'][key]
+            if col == '*':
+                cols = [{'value': i.split(".")[1]} for i in all_col_names]
+                flag = True
+    if flag:
+        reqd_columns = cols
 
     for idx, col in enumerate(reqd_columns):
         if isinstance(col['value'], dict):
@@ -163,7 +202,7 @@ def QueryDatabase(query: str):
             reqd_columns[idx] = {'value': col['value'][keys]}
             col = reqd_columns[idx]
         col_exist[col['value']] = False
-
+    # print(reqd_columns)
     for table in tables.values():
         cols = table.get_column_names()
         for reqd_col in reqd_columns:
@@ -187,10 +226,15 @@ def QueryDatabase(query: str):
                 temp_table,
                 parsed_query['where'],
                 col_to_table)
+            if reqd_rows == -1:
+                return -1
         else:
             rows = []
             for condition in parsed_query['where'][multi_cond_type]:
-                rows.append(makeQuery(temp_table, condition, col_to_table))
+                row = makeQuery(temp_table, condition, col_to_table)
+                if row == -1:
+                    return -1
+                rows.append(row)
             if multi_cond_type == 'and':
                 reqd = [x for x in rows[0] if x in rows[1]]
             else:
@@ -387,7 +431,7 @@ def QueryDatabase(query: str):
             table.add_row([col_data[col_name][0]
                            for col_name in col_data.keys()])
             temp_table = table
-    
+
     # Perform Selection
     if 'groupby' not in parsed_query and not aggregate_query and not distinct_query:
         reqd_cols = copy.copy(parsed_query['select'])
@@ -425,6 +469,8 @@ def QueryDatabase(query: str):
         if len(reqd_cols) == 1:
             if 'distinct' in reqd_cols[0]['value']:
                 reqd_cols = reqd_cols[0]['value']['distinct']
+                if not isinstance(reqd_cols, list):
+                    reqd_cols = [reqd_cols]
         for col in reqd_cols:
             if isinstance(col['value'], dict):
                 key = list(col['value'].keys())[0]
@@ -432,6 +478,15 @@ def QueryDatabase(query: str):
         if groupby_col not in reqd_cols:
             temp_table.remove_column(
                 f"{col_to_table[groupby_col['value']]}.{groupby_col['value']}")
+        rows = set()
+        if distinct_groupby:
+            for idx in range(temp_table.get_num_rows()):
+                rows.add(tuple(temp_table.get_row(idx)))
+            rows = list(list(i) for i in rows)
+            table = Table(query, temp_table.get_column_names())
+            for row in rows:
+                table.add_row(row)
+            temp_table = table
 
     temp_table.print_table()
 
@@ -439,6 +494,9 @@ def QueryDatabase(query: str):
 def makeQuery(table: Table, query: dict, col_to_table: dict):
     query_type = list(query.keys())[0]
     col_name, val = query[query_type]
+    if str(val).isdecimal() and str(col_name).isdecimal():
+        print("Both Columns can't be numeric")
+        return -1
     reqd_col = f"{col_to_table[col_name]}.{col_name}"
     cross_column = False
     if str(val).isalpha():
@@ -465,7 +523,7 @@ def makeQuery(table: Table, query: dict, col_to_table: dict):
 
 if __name__ == '__main__':
     database = Database()
-    read_metadata('./files', database)
+    read_metadata('./files1', database)
     query = sys.argv[1].strip()
     QueryDatabase(query)
 
